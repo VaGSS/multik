@@ -1,0 +1,26 @@
+name: Multik
+version: 1.0
+main: me.bartus47.multik.Multik
+api-version: '1.20'
+commands:
+  team:
+    description: Komendy gildii
+    usage: /team help
+  rynek:
+    description: Otwiera rynek
+    usage: /rynek
+  punkty:
+    description: Zarządzanie punktami
+    usage: /punkty
+  chests: # NEW: Added to fix the NullPointerException
+    description: Zarządzanie skrzyniami z łupem
+    usage: /chests <activate|deactivate>
+  koth:
+    description: King of the Hill command
+permissions:
+  multik.market.admin:
+    description: Admin rynku
+    default: op
+  multik.chests.admin:
+    description: Pozwala na zarządzanie skrzyniami z łupem
+    default: op
