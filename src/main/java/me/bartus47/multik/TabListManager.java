@@ -56,9 +56,7 @@ public class TabListManager {
         }.runTaskTimer(plugin, 20L, 20L);
     }
 
-    // --- METODY POMOCNICZE (REFLEKSJA) ---
-
-    // 1. Znajduje typ pakietu po nazwie (omija brak pola w starym jarze)
+    // --- REFLECTION HELPERS ---
     private PacketType getPacketType(String name) {
         try {
             Field field = PacketType.Play.Server.class.getField(name);
@@ -68,23 +66,15 @@ public class TabListManager {
         }
     }
 
-    // 2. Ustawia akcje używając DEDYKOWANEJ metody z ProtocolLib (to naprawia crash serwera)
     private void setPlayerInfoActions(PacketContainer packet, EnumSet<EnumWrappers.PlayerInfoAction> actions) {
         try {
-            // Szukamy metody getPlayerInfoActions() w PacketContainer
-            // Ta metoda zwraca modifier, który AUTOMATYCZNIE konwertuje enumy!
             Method method = PacketContainer.class.getMethod("getPlayerInfoActions");
-
-            // Wywołujemy: StructureModifier modifier = packet.getPlayerInfoActions();
             Object modifierObj = method.invoke(packet);
 
             if (modifierObj instanceof StructureModifier) {
-                // Wywołujemy: modifier.write(0, actions);
                 ((StructureModifier<EnumSet<EnumWrappers.PlayerInfoAction>>) modifierObj).write(0, actions);
             }
         } catch (Exception e) {
-            // Jeśli coś pójdzie nie tak (np. stara wersja ProtocolLib na serwerze),
-            // próbujemy metody awaryjnej (dla starych wersji MC < 1.19.3)
             try {
                 if (packet.getType() == PacketType.Play.Server.PLAYER_INFO) {
                     packet.getPlayerInfoAction().write(0, EnumWrappers.PlayerInfoAction.ADD_PLAYER);
@@ -96,9 +86,10 @@ public class TabListManager {
     }
 
     private void sendFunnyGuildsTab(Player player) {
+        // --- ZMIANA TUTAJ: Nowa stopka ---
         player.setPlayerListHeaderFooter(
                 ChatColor.AQUA + "" + ChatColor.BOLD + "   KozMc   \n" + ChatColor.DARK_GRAY + "Serwer PvP",
-                "\n" + ChatColor.YELLOW + "Strona: " + ChatColor.WHITE + "www.kozmc.pl"
+                "\n" + ChatColor.YELLOW + "Strona www: " + ChatColor.WHITE + "/strona"
         );
 
         String[] slots = new String[80];
@@ -106,11 +97,9 @@ public class TabListManager {
         fillTabContent(slots, player);
 
         try {
-            // 1. Tworzymy pakiet UPDATE (dla 1.20)
             PacketType type = getPacketType("PLAYER_INFO_UPDATE");
             PacketContainer packet = protocolManager.createPacket(type);
 
-            // 2. Ustawiamy akcje przez naszą bezpieczną metodę
             EnumSet<EnumWrappers.PlayerInfoAction> actions = EnumSet.of(
                     EnumWrappers.PlayerInfoAction.ADD_PLAYER,
                     EnumWrappers.PlayerInfoAction.UPDATE_LISTED,
@@ -119,14 +108,12 @@ public class TabListManager {
             );
             setPlayerInfoActions(packet, actions);
 
-            // 3. Budujemy dane
             List<PlayerInfoData> dataList = new ArrayList<>();
 
             for (int i = 0; i < 80; i++) {
                 WrappedGameProfile profile = fakeProfiles.get(i);
                 WrappedChatComponent displayName = WrappedChatComponent.fromText(slots[i]);
 
-                // Ping = -1 (zazwyczaj powoduje brak kresek lub ciemne kreski)
                 PlayerInfoData data = new PlayerInfoData(
                         profile,
                         -1,
@@ -136,11 +123,9 @@ public class TabListManager {
                 dataList.add(data);
             }
 
-            // 4. Wrzucamy listę (index 1 to standard dla UPDATE)
             try {
                 packet.getPlayerInfoDataLists().write(1, dataList);
             } catch (Exception e) {
-                // Fallback na 0 (dla starszych wersji pakietu)
                 packet.getPlayerInfoDataLists().write(0, dataList);
             }
 
@@ -151,13 +136,12 @@ public class TabListManager {
         }
     }
 
-    // Metoda rozlewająca (dodaje spacje)
     private String pad(String text) {
         return text + "      ";
     }
 
     private void fillTabContent(String[] slots, Player viewer) {
-        // --- KOLUMNA 1: ONLINE ---
+        // KOLUMNA 1
         List<Player> onlinePlayers = new ArrayList<>(Bukkit.getOnlinePlayers());
         slots[0] = pad(ChatColor.AQUA + "" + ChatColor.BOLD + "ONLINE");
         for(int i = 0; i < 19; i++) {
@@ -170,7 +154,7 @@ public class TabListManager {
             }
         }
 
-        // --- KOLUMNA 2: TOP TEAMS ---
+        // KOLUMNA 2
         List<Gildie> topGuilds = new ArrayList<>(guildManager.getGuilds());
         topGuilds.sort((g1, g2) -> Integer.compare(g2.getPoints(), g1.getPoints()));
 
@@ -184,7 +168,7 @@ public class TabListManager {
             }
         }
 
-        // --- KOLUMNA 3: TOP KILLS ---
+        // KOLUMNA 3
         LinkedHashMap<String, Integer> topKillers = playerManager.getTopKillers(19);
         List<Map.Entry<String, Integer>> killerEntries = new ArrayList<>(topKillers.entrySet());
 
@@ -198,14 +182,13 @@ public class TabListManager {
             }
         }
 
-        // --- KOLUMNA 4: TWOJE STATY ---
+        // KOLUMNA 4
         slots[60] = pad(ChatColor.GREEN + "" + ChatColor.BOLD + "TWOJE STATY");
         slots[62] = pad(ChatColor.GRAY + "Nick:");
         slots[63] = pad(ChatColor.WHITE + viewer.getName());
         slots[65] = pad(ChatColor.GRAY + "Zabójstwa:");
         slots[66] = pad(ChatColor.RED + "" + playerManager.getKills(viewer.getUniqueId()));
 
-        // Ping jako tekst - DODANY
         slots[68] = pad(ChatColor.GRAY + "Ping:");
         slots[69] = pad(ChatColor.GREEN + "" + viewer.getPing() + "ms");
 

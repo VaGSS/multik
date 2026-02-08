@@ -24,15 +24,15 @@ import java.util.List;
 public class GuildListener implements Listener {
 
     private final GuildManager guildManager;
-    private final Multik plugin; // NEW: Needed for the scheduler
+    private final Multik plugin;
 
-    // UPDATED Constructor: Now accepts 'Multik plugin'
     public GuildListener(GuildManager guildManager, Multik plugin) {
         this.guildManager = guildManager;
         this.plugin = plugin;
     }
 
-    // UPDATED: BossBar Alert Logic
+    // USUNIĘTO onChat - TO KLUCZOWE, ABY DZIAŁAŁ CONFIG ESSENTIALS
+
     @EventHandler
     public void onMove(PlayerMoveEvent event) {
         if (event.getFrom().getBlockX() == event.getTo().getBlockX() &&
@@ -51,7 +51,6 @@ public class GuildListener implements Listener {
             if (!toGuild.getMembers().contains(player.getUniqueId()) &&
                     !toGuild.getLeader().equals(player.getUniqueId())) {
 
-                // 1. Collect online members to notify
                 List<Player> membersToNotify = new ArrayList<>();
                 for (UUID memberUUID : toGuild.getMembers()) {
                     Player member = Bukkit.getPlayer(memberUUID);
@@ -62,20 +61,16 @@ public class GuildListener implements Listener {
 
                 if (membersToNotify.isEmpty()) return;
 
-                // 2. Create BossBar (Top of screen, small)
-                // Message: "[player] entered your territory"
                 BossBar alertBar = Bukkit.createBossBar(
                         ChatColor.RED + player.getName() + " entered your territory",
                         BarColor.RED,
                         BarStyle.SOLID
                 );
 
-                // 3. Show to members
                 for (Player p : membersToNotify) {
                     alertBar.addPlayer(p);
                 }
 
-                // 4. Remove after 5 seconds (100 ticks)
                 new BukkitRunnable() {
                     @Override
                     public void run() {
@@ -96,7 +91,6 @@ public class GuildListener implements Listener {
             Gildie guildAtLoc = guildManager.getGuildAtLocation(block.getLocation());
             if (guildAtLoc == null) return;
 
-            // Allow Leader, Co-Leader, Members
             if (guildAtLoc.getMembers().contains(event.getPlayer().getUniqueId()) ||
                     guildAtLoc.getLeader().equals(event.getPlayer().getUniqueId())) return;
 
