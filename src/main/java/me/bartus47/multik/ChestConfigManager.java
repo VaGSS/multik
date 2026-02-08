@@ -1,11 +1,14 @@
 package me.bartus47.multik;
 
+import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -32,7 +35,8 @@ public class ChestConfigManager {
                 config.set("chests.LOOT.name", "LOOT");
                 config.set("chests.LOOT.interval", 20);
                 config.set("chests.LOOT.open_delay", 15);
-                config.set("chests.LOOT.items", List.of("DIAMOND:1"));
+                // Default items stored as list of items
+                config.set("chests.LOOT.items", List.of(new ItemStack(Material.DIAMOND)));
 
                 config.save(file);
             } catch (IOException e) {
@@ -40,6 +44,24 @@ public class ChestConfigManager {
             }
         }
         config = YamlConfiguration.loadConfiguration(file);
+    }
+
+    public void updateChestLoot(String key, ItemStack[] contents) {
+        List<ItemStack> itemList = new ArrayList<>();
+        for (ItemStack item : contents) {
+            if (item != null && item.getType() != Material.AIR) {
+                // Save the full item object to preserve SigmaArmour data
+                itemList.add(item);
+            }
+        }
+
+        if (!config.contains("chests." + key)) {
+            config.set("chests." + key + ".name", key);
+            config.set("chests." + key + ".interval", 20);
+            config.set("chests." + key + ".open_delay", 15);
+        }
+        config.set("chests." + key + ".items", itemList);
+        save();
     }
 
     public Set<String> getChestKeys() {

@@ -2,6 +2,7 @@ package me.bartus47.multik;
 
 import org.bukkit.*;
 import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -15,6 +16,10 @@ public class LootManager {
     private final ChestConfigManager configManager;
     private final Random random = new Random();
 
+    // NEW: Track when the server/plugin started
+    private final long startTime;
+    private static final long SIX_HOURS_MS = 6 * 60 * 60 * 1000L;
+
     private final Map<String, BukkitTask> activeTasks = new HashMap<>();
     private final Map<Location, Long> chestSpawnTimes = new HashMap<>();
     private final Map<Location, String> chestTypes = new HashMap<>();
@@ -23,6 +28,7 @@ public class LootManager {
     public LootManager(Multik plugin, ChestConfigManager configManager) {
         this.plugin = plugin;
         this.configManager = configManager;
+        this.startTime = System.currentTimeMillis(); // Record start time
         if (configManager.isActive()) {
             startAllTimers();
         }
@@ -37,6 +43,13 @@ public class LootManager {
             BukkitTask task = new BukkitRunnable() {
                 @Override
                 public void run() {
+                    // NEW: Check if 6 hours have passed since start
+                    if (System.currentTimeMillis() - startTime > SIX_HOURS_MS) {
+                        plugin.getLogger().info("6-hour loot window closed. Stopping " + key + " respawns.");
+                        this.cancel(); // Stop this specific repeating task
+                        return;
+                    }
+
                     if (configManager.isActive()) {
                         spawnChest(key);
                     }
@@ -73,18 +86,28 @@ public class LootManager {
         as.setCustomName(ChatColor.GOLD + "" + ChatColor.BOLD + name);
 
         holograms.put(loc, as);
-
         Bukkit.broadcastMessage(ChatColor.GOLD + name + " chest appeared at " + x + ", " + y + ", " + z);
     }
 
     public void removeChest(Location loc) {
-        // FIXED: Ensure the ArmorStand is explicitly removed from the world
         if (holograms.containsKey(loc)) {
             ArmorStand as = holograms.get(loc);
-            if (as != null) {
+            if (as != null && !as.isDead()) {
                 as.remove();
             }
             holograms.remove(loc);
+        }
+
+        if (loc.getWorld() != null) {
+            Location hologramLoc = loc.clone().add(0.5, 1.2, 0.5);
+            for (Entity entity : loc.getWorld().getNearbyEntities(hologramLoc, 0.5, 1.0, 0.5)) {
+                if (entity instanceof ArmorStand) {
+                    ArmorStand as = (ArmorStand) entity;
+                    if (!as.isVisible() && as.isMarker()) {
+                        as.remove();
+                    }
+                }
+            }
         }
 
         chestSpawnTimes.remove(loc);
@@ -93,10 +116,9 @@ public class LootManager {
     }
 
     private void cleanupAllChests() {
-        holograms.forEach((loc, as) -> {
-            loc.getBlock().setType(Material.AIR);
-            if (as != null) as.remove();
-        });
+        for (Location loc : new java.util.HashSet<>(holograms.keySet())) {
+            removeChest(loc);
+        }
         holograms.clear();
         chestSpawnTimes.clear();
         chestTypes.clear();

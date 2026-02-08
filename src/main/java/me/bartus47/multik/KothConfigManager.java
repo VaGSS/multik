@@ -33,10 +33,33 @@ public class KothConfigManager {
                 config.set("rewards.items", items);
                 config.set("settings.max_points", 100);
                 config.set("settings.radius", 25);
+                // NEW: Default coordinates
+                config.set("settings.x", 0);
+                config.set("settings.y", 60);
+                config.set("settings.z", 0);
                 config.save(file);
             } catch (IOException e) { e.printStackTrace(); }
         }
         config = YamlConfiguration.loadConfiguration(file);
+    }
+
+    public void setRewards(ItemStack[] contents) {
+        List<String> itemList = new ArrayList<>();
+        for (ItemStack item : contents) {
+            if (item != null && item.getType() != Material.AIR) {
+                itemList.add(item.getType().toString() + ":" + item.getAmount());
+            }
+        }
+        config.set("rewards.items", itemList);
+        save();
+    }
+
+    public void save() {
+        try {
+            config.save(file);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     public List<ItemStack> getRewards() {
@@ -52,4 +75,9 @@ public class KothConfigManager {
 
     public int getMaxPoints() { return config.getInt("settings.max_points", 100); }
     public int getRadius() { return config.getInt("settings.radius", 25); }
+
+    // NEW: Getters for coordinates
+    public int getCenterX() { return config.getInt("settings.x", 0); }
+    public int getCenterY() { return config.getInt("settings.y", 60); }
+    public int getCenterZ() { return config.getInt("settings.z", 0); }
 }

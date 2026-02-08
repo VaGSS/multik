@@ -56,21 +56,20 @@ public class LootInteractionListener implements Listener {
             return;
         }
 
-        // AWARD 10 POINTS (Changed from 20)
         guild.addPoints(10);
         plugin.getGuildManager().saveGuilds();
 
-        List<String> items = plugin.getChestConfigManager().getConfig().getStringList("chests." + type + ".items");
-        for (String s : items) {
-            try {
-                String[] p = s.split(":");
-                Material m = Material.matchMaterial(p[0]);
-                int amt = (p.length > 1) ? Integer.parseInt(p[1]) : 1;
-                if (m != null) plugin.getGuildInventoryManager().getTakeOnlyChest(guild.getTag()).addItem(new ItemStack(m, amt));
-            } catch (Exception ignored) {}
+        // UPDATED: Retrieve list of ItemStacks directly from config
+        List<?> items = plugin.getChestConfigManager().getConfig().getList("chests." + type + ".items");
+        if (items != null) {
+            for (Object obj : items) {
+                if (obj instanceof ItemStack) {
+                    // SigmaArmour data is preserved in this ItemStack
+                    plugin.getGuildInventoryManager().getTakeOnlyChest(guild.getTag()).addItem((ItemStack) obj);
+                }
+            }
         }
 
-        // Global broadcast message
         String chestName = plugin.getChestConfigManager().getConfig().getString("chests." + type + ".name", type);
         Bukkit.broadcastMessage(ChatColor.GOLD + "" + ChatColor.BOLD + "LOOT > " +
                 ChatColor.YELLOW + player.getName() + " claimed " + ChatColor.GOLD + chestName +

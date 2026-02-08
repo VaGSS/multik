@@ -91,7 +91,7 @@
         <dependency>
             <groupId>com.comphenix.protocol</groupId>
             <artifactId>ProtocolLib</artifactId>
-            <version>5.4.0</version>
+            <version>5.1.0</version>
             <scope>system</scope>
             <systemPath>${project.basedir}/src/libs/ProtocolLib.jar</systemPath>
         </dependency>

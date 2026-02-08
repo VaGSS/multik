@@ -31,6 +31,10 @@ public class KothManager {
         this.config = config;
     }
 
+    public KothConfigManager getConfigManager() {
+        return config;
+    }
+
     public void scheduleStart() {
         if (isEventActive) return;
         int[] intervals = {30, 20, 10, 5, 3, 2, 1};
@@ -46,7 +50,8 @@ public class KothManager {
                 }
                 for (int i : intervals) {
                     if (timer == i * 60) {
-                        Bukkit.broadcastMessage(ChatColor.GOLD + "KOTH starts in " + i + " minutes at (0, 0)!");
+                        Bukkit.broadcastMessage(ChatColor.GOLD + "KOTH starts in " + i +
+                                " minutes at (" + config.getCenterX() + ", " + config.getCenterZ() + ")!");
                     }
                 }
                 timer--;
@@ -58,6 +63,8 @@ public class KothManager {
         isEventActive = true;
         currentPoints = 0;
         capturingGuild = null;
+
+        // 1. SAVE: Snapshot twice the radius to ensure we cover the border and surrounding area
         saveAreaSnapshot();
 
         bossBar = Bukkit.createBossBar(ChatColor.YELLOW + "KOTH: No one capturing", BarColor.BLUE, BarStyle.SOLID);
@@ -77,12 +84,20 @@ public class KothManager {
     private void saveAreaSnapshot() {
         areaSnapshot.clear();
         World world = Bukkit.getWorlds().get(0);
-        int radius = config.getRadius();
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                int highestY = world.getHighestBlockYAt(x, z);
-                for (int y = 60; y <= highestY + 1; y++) {
+
+        // Use configured values
+        int cx = config.getCenterX();
+        int cy = config.getCenterY();
+        int cz = config.getCenterZ();
+        // Double radius for safety/cleanup
+        int saveRadius = config.getRadius() * 2;
+
+        for (int x = cx - saveRadius; x <= cx + saveRadius; x++) {
+            for (int z = cz - saveRadius; z <= cz + saveRadius; z++) {
+                // Save from configured Y up to the sky
+                for (int y = cy; y <= world.getMaxHeight(); y++) {
                     Block block = world.getBlockAt(x, y, z);
+                    // Only save non-air blocks to save memory
                     if (block.getType() != Material.AIR) {
                         areaSnapshot.put(block.getLocation(), block.getBlockData().clone());
                     }
@@ -94,13 +109,16 @@ public class KothManager {
     private void updateWoolBorder() {
         World world = Bukkit.getWorlds().get(0);
         int radius = config.getRadius();
-        for (int x = -radius; x <= radius; x++) {
-            ensureWoolAtSurface(world, x, radius);
-            ensureWoolAtSurface(world, x, -radius);
+        int cx = config.getCenterX();
+        int cz = config.getCenterZ();
+
+        for (int x = cx - radius; x <= cx + radius; x++) {
+            ensureWoolAtSurface(world, x, cz + radius);
+            ensureWoolAtSurface(world, x, cz - radius);
         }
-        for (int z = -radius; z <= radius; z++) {
-            ensureWoolAtSurface(world, radius, z);
-            ensureWoolAtSurface(world, -radius, z);
+        for (int z = cz - radius; z <= cz + radius; z++) {
+            ensureWoolAtSurface(world, cx + radius, z);
+            ensureWoolAtSurface(world, cx - radius, z);
         }
     }
 
@@ -113,7 +131,8 @@ public class KothManager {
                     type == Material.GRASS || type == Material.TALL_GRASS) {
                 continue;
             }
-            block.setType(Material.RED_WOOL);
+            // Prevent lag: do not update if already red wool
+            block.setType(Material.RED_WOOL, false);
             break;
         }
     }
@@ -121,11 +140,16 @@ public class KothManager {
     private void updateCaptureLogic() {
         Map<Gildie, Integer> guildsOnHill = new HashMap<>();
         int radius = config.getRadius();
+        int cx = config.getCenterX();
+        int cy = config.getCenterY(); // Use Config Y
+        int cz = config.getCenterZ();
 
         for (Player p : Bukkit.getOnlinePlayers()) {
             Location loc = p.getLocation();
-            // FIXED: Checks if player is inside the square (radius 25) at (0,0) and above Y=60
-            if (Math.abs(loc.getX()) <= radius && Math.abs(loc.getZ()) <= radius && loc.getY() >= 60) {
+            if (Math.abs(loc.getX() - cx) <= radius &&
+                    Math.abs(loc.getZ() - cz) <= radius &&
+                    loc.getY() >= cy) {
+
                 Gildie g = plugin.getGuildManager().getGuildByPlayer(p.getUniqueId());
                 if (g != null) {
                     guildsOnHill.put(g, guildsOnHill.getOrDefault(g, 0) + 1);
@@ -189,15 +213,31 @@ public class KothManager {
 
     private void restoreArea() {
         World world = Bukkit.getWorlds().get(0);
-        int radius = config.getRadius();
-        for (int x = -radius; x <= radius; x++) {
-            for (int z = -radius; z <= radius; z++) {
-                for (int y = 60; y <= world.getMaxHeight(); y++) {
-                    world.getBlockAt(x, y, z).setType(Material.AIR);
+        int cx = config.getCenterX();
+        int cy = config.getCenterY();
+        int cz = config.getCenterZ();
+        int saveRadius = config.getRadius() * 2;
+
+        // Iterate over the EXACT same volume as the snapshot
+        for (int x = cx - saveRadius; x <= cx + saveRadius; x++) {
+            for (int z = cz - saveRadius; z <= cz + saveRadius; z++) {
+                for (int y = cy; y <= world.getMaxHeight(); y++) {
+                    Block block = world.getBlockAt(x, y, z);
+                    Location loc = block.getLocation();
+
+                    if (areaSnapshot.containsKey(loc)) {
+                        // 1. If it was in the snapshot (it was a block), restore it
+                        block.setBlockData(areaSnapshot.get(loc), false);
+                    } else {
+                        // 2. If it is NOT in the snapshot, it was AIR originally
+                        // so we set it to AIR (removing any player builds/wool borders)
+                        if (block.getType() != Material.AIR) {
+                            block.setType(Material.AIR, false);
+                        }
+                    }
                 }
             }
         }
-        areaSnapshot.forEach((loc, data) -> loc.getBlock().setBlockData(data));
         areaSnapshot.clear();
     }
 
